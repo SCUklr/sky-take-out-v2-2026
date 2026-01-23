@@ -1,6 +1,7 @@
 package com.sky.controller.admin;
 
 import com.sky.constant.JwtClaimsConstant;
+import com.sky.dto.EmployeeDTO;
 import com.sky.dto.EmployeeLoginDTO;
 import com.sky.entity.Employee;
 import com.sky.properties.JwtProperties;
@@ -26,7 +27,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/admin/employee")
 @Slf4j
-@Api(tags = "员工相关接口")
+@Api(tags = "员工相关接口") // tags=描述功能
+// 定义接口分组（模块名称），Knife4j 会根据 tags 进行分组展示和排序
 public class EmployeeController {
 
     @Autowired
@@ -41,7 +43,7 @@ public class EmployeeController {
      * @return
      */
     @PostMapping("/login")
-    @ApiOperation(value = "员工登录")
+    @ApiOperation(value = "员工登录") // 接口名称（summary）、详细描述（description）、隐藏接口等
     public Result<EmployeeLoginVO> login(@RequestBody EmployeeLoginDTO employeeLoginDTO) {
         log.info("员工登录：{}", employeeLoginDTO);
 
@@ -71,9 +73,15 @@ public class EmployeeController {
      * @return
      */
     @PostMapping("/logout")
-    @ApiOperation(value = "员工退出")
+    @ApiOperation("员工退出") //
     public Result<String> logout() {
         return Result.success();
     }
-
+    @PostMapping
+    @ApiOperation("新增员工")
+    public Result save(@RequestBody EmployeeDTO employeeDTO) {
+        log.info("新增员工：{}",  employeeDTO);
+        employeeService.save(employeeDTO);
+        return Result.success();
+    }
 }
