@@ -78,4 +78,9 @@ public class ShoppingCartServiceImpl implements ShoppingCartService {
                 // BaseContext.getCurrentId() 是当前登录用户 id，所以只会查自己的购物车。
                 build());
     }
+
+    @Override
+    public void cleanShoppingCart() {
+        shoppingCartMapper.deleteByUserId(BaseContext.getCurrentId());
+    }
 }
