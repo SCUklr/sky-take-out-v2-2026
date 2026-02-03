@@ -165,10 +165,10 @@ public class OrderServiceImpl implements OrderService {
 
         // 分页条件查询
         Page<Orders> page = orderMapper.pageQuery(ordersPageQueryDTO);
-        List<OrderVO> list = new ArrayList();
+        List<OrderVO> list = new ArrayList<>();
 
         // 查询订单明细然后封装进VO
-        if(page != null && page.getTotal() > 0) {
+        if (page != null && page.getTotal() > 0) {
             for(Orders orders: page) {
                 Long orderId = orders.getId(); // 订单id
 
@@ -204,5 +204,47 @@ public class OrderServiceImpl implements OrderService {
         orderVO.setOrderDetailList(orderDetailList);
 
         return orderVO;
+    }
+
+    /**
+     * 用户取消订单
+     *
+     * @param id
+     */
+    @Override
+    public void userCancelById(Long id) {
+        // 根据 id 查询订单
+        Orders ordersDB = orderMapper.getById(id);
+
+        // 效验订单是否存在
+        if (ordersDB == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        // 订单状态 1待付款 2待接单 3已接单 4派送中 5已完成 6已取消 大于2的
+        if (ordersDB.getStatus() > 2) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        // 提取订单出来
+        Orders orders = new Orders();
+        orders.setId(ordersDB.getId());
+
+        // 订单处于待接单状态下取消，需要进行退款
+        if (ordersDB.getStatus().equals(Orders.TO_BE_CONFIRMED)) {
+            // 原有微信退款逻辑（保留注释，模拟支付场景不执行）
+            /*
+            weChatPayUtil.refund(
+                    ordersDB.getNumber(), //商户订单号
+                    ordersDB.getNumber(), //商户退款单号
+                    new BigDecimal(0.01),//退款金额，单位 元
+                    new BigDecimal(0.01));//原订单金额
+            */
+            // 模拟支付场景：不调用微信退款接口，直接标记为退款
+            orders.setPayStatus(Orders.REFUND);
+        }
+        orders.setStatus(Orders.CANCELLED);
+        orders.setCancelReason("用户取消");
+        orders.setCancelTime(LocalDateTime.now());
+        orderMapper.update(orders);
     }
 }
