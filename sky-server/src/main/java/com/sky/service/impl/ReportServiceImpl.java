@@ -5,15 +5,27 @@ import com.sky.entity.Orders;
 import com.sky.mapper.OrderMapper;
 import com.sky.mapper.UserMapper;
 import com.sky.service.ReportService;
+import com.sky.service.WorkspaceService;
+import com.sky.vo.BusinessDataVO;
 import com.sky.vo.OrderReportVO;
 import com.sky.vo.SalesTop10ReportVO;
 import com.sky.vo.TurnoverReportVO;
 import com.sky.vo.UserReportVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
+import org.apache.poi.xssf.usermodel.XSSFCell;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -30,6 +42,8 @@ public class ReportServiceImpl implements ReportService {
     private OrderMapper orderMapper;
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private WorkspaceService workspaceService;
 
     @Override
     public TurnoverReportVO getTurnover(LocalDate begin, LocalDate end) {
@@ -178,5 +192,86 @@ public class ReportServiceImpl implements ReportService {
         map.put("begin", beginTime);
         map.put("end", endTime);
         return orderMapper.countByMap(map);
+    }
+
+    @Override
+    public void exportBusinessData(HttpServletResponse response) {
+        LocalDate begin = LocalDate.now().minusDays(30);
+        LocalDate end = LocalDate.now().minusDays(1);
+
+        BusinessDataVO businessData = workspaceService.getBusinessData(
+                LocalDateTime.of(begin, LocalTime.MIN),
+                LocalDateTime.of(end, LocalTime.MAX));
+
+        try (InputStream inputStream = this.getClass().getClassLoader()
+                .getResourceAsStream("template/运营数据报表模板.xlsx");
+             XSSFWorkbook excel = inputStream != null ? new XSSFWorkbook(inputStream) : new XSSFWorkbook()) {
+
+            XSSFSheet sheet = excel.getNumberOfSheets() > 0 ? excel.getSheetAt(0) : excel.createSheet("Sheet1");
+            initReportSheetIfNeeded(sheet);
+
+            getCell(sheet, 1, 1).setCellValue(begin + "至" + end);
+            getCell(sheet, 3, 2).setCellValue(businessData.getTurnover());
+            getCell(sheet, 3, 4).setCellValue(businessData.getOrderCompletionRate());
+            getCell(sheet, 3, 6).setCellValue(businessData.getNewUsers());
+            getCell(sheet, 4, 2).setCellValue(businessData.getValidOrderCount());
+            getCell(sheet, 4, 4).setCellValue(businessData.getUnitPrice());
+
+            for (int i = 0; i < 30; i++) {
+                LocalDate date = begin.plusDays(i);
+                businessData = workspaceService.getBusinessData(
+                        LocalDateTime.of(date, LocalTime.MIN),
+                        LocalDateTime.of(date, LocalTime.MAX));
+
+                int rowIndex = 7 + i;
+                getCell(sheet, rowIndex, 1).setCellValue(date.toString());
+                getCell(sheet, rowIndex, 2).setCellValue(businessData.getTurnover());
+                getCell(sheet, rowIndex, 3).setCellValue(businessData.getValidOrderCount());
+                getCell(sheet, rowIndex, 4).setCellValue(businessData.getOrderCompletionRate());
+                getCell(sheet, rowIndex, 5).setCellValue(businessData.getUnitPrice());
+                getCell(sheet, rowIndex, 6).setCellValue(businessData.getNewUsers());
+            }
+
+            String fileName = URLEncoder.encode("运营数据报表.xlsx", StandardCharsets.UTF_8.name())
+                    .replaceAll("\\+", "%20");
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + fileName);
+
+            try (ServletOutputStream out = response.getOutputStream()) {
+                excel.write(out);
+                out.flush();
+            }
+        } catch (IOException e) {
+            log.error("导出运营数据报表失败", e);
+            throw new RuntimeException("导出运营数据报表失败");
+        }
+    }
+
+    private void initReportSheetIfNeeded(XSSFSheet sheet) {
+        getCell(sheet, 0, 1).setCellValue("运营数据报表");
+        getCell(sheet, 1, 0).setCellValue("时间");
+        getCell(sheet, 3, 1).setCellValue("营业额");
+        getCell(sheet, 3, 3).setCellValue("订单完成率");
+        getCell(sheet, 3, 5).setCellValue("新增用户");
+        getCell(sheet, 4, 1).setCellValue("有效订单");
+        getCell(sheet, 4, 3).setCellValue("平均客单价");
+        getCell(sheet, 6, 1).setCellValue("日期");
+        getCell(sheet, 6, 2).setCellValue("营业额");
+        getCell(sheet, 6, 3).setCellValue("有效订单");
+        getCell(sheet, 6, 4).setCellValue("订单完成率");
+        getCell(sheet, 6, 5).setCellValue("平均客单价");
+        getCell(sheet, 6, 6).setCellValue("新增用户");
+    }
+
+    private XSSFCell getCell(XSSFSheet sheet, int rowIndex, int cellIndex) {
+        XSSFRow row = sheet.getRow(rowIndex);
+        if (row == null) {
+            row = sheet.createRow(rowIndex);
+        }
+        XSSFCell cell = row.getCell(cellIndex);
+        if (cell == null) {
+            cell = row.createCell(cellIndex);
+        }
+        return cell;
     }
 }
