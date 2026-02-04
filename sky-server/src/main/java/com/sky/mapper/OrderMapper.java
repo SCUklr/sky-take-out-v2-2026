@@ -4,6 +4,7 @@ import com.github.pagehelper.Page;
 import com.sky.dto.OrdersPageQueryDTO;
 import com.sky.entity.Orders;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
@@ -65,4 +66,18 @@ public interface OrderMapper {
      * @param map
      */
     Double sumByMap(Map<String, Object> map);
+
+    /**
+     * 根据动态条件统计订单数量
+     * @param map
+     */
+    Integer countByMap(Map<String, Object> map);
+
+    /**
+     * 查询商品销量排名
+     * @param begin
+     * @param end
+     */
+    List<com.sky.dto.GoodsSalesDTO> getSalesTop10(@Param("begin") LocalDateTime begin,
+                                                  @Param("end") LocalDateTime end);
 }
